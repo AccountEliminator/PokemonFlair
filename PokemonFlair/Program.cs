@@ -124,7 +124,7 @@ namespace PokemonFlair
                 if (!message.IsComment && message.Subject == "Set flair")
                 {
                     int flair;
-                    if (int.TryParse(message.Body, out flair))
+                    if (int.TryParse(message.Body, out flair) && flair >= Config.MinimumFlairNumber && flair <= Config.MaximumFlairNumber)
                     {
                         Console.WriteLine("Setting /u/{0} to {1}", message.Author, flair);
                         foreach (var subreddit in Subreddits)
@@ -135,7 +135,7 @@ namespace PokemonFlair
                     {
                         Console.WriteLine("Setting /u/{0} to {1}", message.Author, Config.ErronousFlair);
                         foreach (var subreddit in Subreddits)
-                            subreddit.SetUserFlair(message.Author, flair.ToString(), Config.ErronousFlair);
+                            subreddit.SetUserFlair(message.Author, Config.ErronousFlair, string.Empty);
                         message.Reply(Config.ErrornousFlairMessage);
                     }
                 }
