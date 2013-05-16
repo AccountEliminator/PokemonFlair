@@ -25,5 +25,7 @@ namespace PokemonFlair
         public string ErrornousFlairMessage { get; set; }
         public string SuccessfulFlairMessage { get; set; }
         public int SecondsBetweenUpdates { get; set; }
+        public string[] TrustedUsers { get; set; }
+        public string[] BlacklistedReddits { get; set; }
     }
 }

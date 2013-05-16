@@ -10,9 +10,12 @@ namespace PokemonFlair
         public RegisteredSubreddit()
         {
             BannedLinks = new BannedLink[0];
+            FlairEnabled = BannedDomainsEnabled = true;
         }
 
         public BannedLink[] BannedLinks { get; set; }
         public string Name { get; set; }
+        public bool FlairEnabled { get; set; }
+        public bool BannedDomainsEnabled { get; set; }
     }
 }
