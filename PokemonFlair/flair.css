@@ -5,7 +5,7 @@
     vertical-align: middle;
     display: inline-block;
 }
-.flair-missingno{width:9px;height:19px;background-image: url(%%missingo2%%);}
+.flair-missingno{width:9px;height:19px;background-image: url(%%missingno%%);}
 .flair-1,.wiki-page a[href$="=1"]{width:20px;height:17px;background-position:-6px -12px;}
 .flair-2,.wiki-page a[href$="=2"]{width:21px;height:18px;background-position:-6px -43px;}
 .flair-3,.wiki-page a[href$="=3"]{width:27px;height:22px;background-position:-3px -73px;}

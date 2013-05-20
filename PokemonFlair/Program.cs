@@ -29,6 +29,7 @@ namespace PokemonFlair
             }
             Config = JsonConvert.DeserializeObject<Configuration>(File.ReadAllText("config.json"));
             Console.WriteLine("Logging into Reddit as /u/{0}", Config.Login.Username);
+            Reddit.UserAgent = "/u/pokemon-flair: /r/pokemon flair and moderation bot";
             Reddit = new Reddit();
             try
             {
@@ -261,6 +262,9 @@ namespace PokemonFlair
             if (stylesheet.Images.Any(i => i.Name == "flairsheet"))
                 stylesheet.Images.FirstOrDefault(i => i.Name == "flairsheet").Delete();
             stylesheet.UploadImage("flairsheet", ImageType.PNG, File.ReadAllBytes("flairsheet.png"));
+            if (stylesheet.Images.Any(i => i.Name == "missingno"))
+                stylesheet.Images.FirstOrDefault(i => i.Name == "missingno").Delete();
+            stylesheet.UploadImage("missingno", ImageType.PNG, File.ReadAllBytes("missingno.png"));
             stylesheet.UpdateCss();
             var settings = subreddit.GetSettings();
             if (!settings.Sidebar.Contains("(/r/pokemon/wiki/flair)"))
