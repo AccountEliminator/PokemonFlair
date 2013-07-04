@@ -27,7 +27,8 @@ namespace PokemonFlair
                 Console.WriteLine("A new configuration file has been generated and saved to config.json.");
                 return;
             }
-            Config = JsonConvert.DeserializeObject<Configuration>(File.ReadAllText("config.json"));
+			JsonConvert.PopulateObject(File.ReadAllText("config.json"), Config);
+			SaveConfig(); // To include any new properties added during an upgrade or the like
             Console.WriteLine("Logging into Reddit as /u/{0}", Config.Login.Username);
             Reddit.UserAgent = "/u/pokemon-flair: /r/pokemon flair and moderation bot";
             Reddit = new Reddit();
@@ -85,6 +86,7 @@ namespace PokemonFlair
             {
                 CheckInbox();
                 CheckNewLinks();
+				CheckSilentBans();
                 Console.WriteLine("Update completed successfully.");
             }
             catch (Exception e)
@@ -94,6 +96,47 @@ namespace PokemonFlair
             }
         }
 
+		private static void CheckSilentBans()
+		{
+			Console.WriteLine("Checking for posts from silenced users...");
+			foreach (var subreddit in Config.Subreddits)
+			{
+				foreach (var _user in subreddit.SilencedUsers)
+				{
+					var user = Reddit.GetUser(_user);
+					var overview = user.GetOverview().Take(25).ToArray();
+					var relevantEntries = overview.Where(e =>
+                    {
+						if (e is Post)
+							return "/r/" + (e as Post).Subreddit == subreddit.Name;
+						else
+							return "/r/" + (e as Comment).Subreddit == subreddit.Name;
+					}).ToArray();
+					foreach (var entry in relevantEntries)
+					{
+						if (entry is Post)
+						{
+							var post = entry as Post;
+							if (string.IsNullOrEmpty(post.BannedBy))
+							{
+								Console.WriteLine("Removing \"{0}\", by /u/{1}", post.Title, post.AuthorName);
+								post.Remove();
+							}
+						}
+						else if (entry is Comment)
+						{
+							var comment = entry as Comment;
+							if (string.IsNullOrEmpty(comment.BannedBy))
+							{
+								Console.WriteLine("Removing comment {0} by /u/{1}", comment.FullName, comment.Author);
+								comment.Remove();
+							}
+						}
+					}
+				}
+			}
+		}
+
         private static void CheckNewLinks()
         {
             Console.WriteLine("Checking /new for banned links...");
@@ -101,7 +144,7 @@ namespace PokemonFlair
             {
                 var registeredSubreddit = Config.Subreddits.FirstOrDefault(s => s.Name == "/r/" + subreddit.Name);
                 if (!registeredSubreddit.BannedDomainsEnabled) continue;
-                var newLinks = subreddit.GetNew();
+                var newLinks = subreddit.GetNew().Take(25);
                 foreach (var link in newLinks)
                 {
                     foreach (var bannedLink in registeredSubreddit.BannedLinks)
@@ -160,7 +203,7 @@ namespace PokemonFlair
                 }
             }
             Console.WriteLine("Checking modmail...");
-            var modmail = Reddit.User.GetModMail();
+            var modmail = Reddit.User.GetModMail().Take(25);
             foreach (var mail in modmail)
             {
                 if (mail.Subject.StartsWith("Moderation of /r/"))
@@ -211,34 +254,51 @@ namespace PokemonFlair
                 "/r/" + subreddit.Name);
         }
 
-        private static void HandleTrustedMessage(PrivateMessage message)
-        {
-            if (message.Subject == "REMOVE SUBREDDIT")
-            {
-                Console.WriteLine("Removing subreddit per trusted request");
-                var subreddit = Subreddits.FirstOrDefault(r => "/r/" + r.Name == message.Body);
-                subreddit.RemoveModerator("t2_" + Reddit.User.Id);
-                Reddit.ComposePrivateMessage("Leaving subreddit", "I have been instructed to remove this subreddit from the /r/pokemon family. It's been fun, guys.", "/r/" + subreddit.Name);
-                var registeredSubreddit = Config.Subreddits.FirstOrDefault(s => s.Name == "/r/" + subreddit.Name);
-                Subreddits = Subreddits.Where(s => s != subreddit).ToArray();
-                Config.Subreddits = Config.Subreddits.Where(s => s != registeredSubreddit).ToArray();
-                SaveConfig();
-                message.Reply("Removed /r/" + subreddit.Name);
-            }
-            if (message.Subject == "BLACKLIST SUBREDDIT")
-            {
-                Console.WriteLine("Blacklisting subreddit per trusted request");
-                Config.BlacklistedReddits = Config.BlacklistedReddits.Concat(new[] { message.Body }).ToArray();
-                SaveConfig();
-                message.Reply("Blacklisted " + message.Body);
-            }
-            if (message.Subject == "PUSH UPDATE")
-            {
-                Console.WriteLine("Pushing updates to all subreddits per trusted request");
-                message.Reply("Pushing updates to all subreddits.");
-                foreach (var subreddit in Subreddits)
-                    UpdateSubreddit(subreddit);
-            }
+        private static void HandleTrustedMessage (PrivateMessage message)
+		{
+			if (message.Subject == "REMOVE SUBREDDIT")
+			{
+				Console.WriteLine("Removing subreddit per trusted request");
+				var subreddit = Subreddits.FirstOrDefault(r => "/r/" + r.Name == message.Body);
+				subreddit.RemoveModerator("t2_" + Reddit.User.Id);
+				Reddit.ComposePrivateMessage("Leaving subreddit", "I have been instructed to remove this subreddit from the /r/pokemon family. It's been fun, guys.", "/r/" + subreddit.Name);
+				var registeredSubreddit = Config.Subreddits.FirstOrDefault(s => s.Name == "/r/" + subreddit.Name);
+				Subreddits = Subreddits.Where(s => s != subreddit).ToArray();
+				Config.Subreddits = Config.Subreddits.Where(s => s != registeredSubreddit).ToArray();
+				SaveConfig();
+				message.Reply("Removed /r/" + subreddit.Name);
+			}
+			if (message.Subject == "BLACKLIST SUBREDDIT")
+			{
+				Console.WriteLine("Blacklisting subreddit per trusted request");
+				Config.BlacklistedReddits = Config.BlacklistedReddits.Concat(new[] { message.Body }).ToArray();
+				SaveConfig();
+				message.Reply("Blacklisted " + message.Body);
+			}
+			if (message.Subject == "PUSH UPDATE")
+			{
+				Console.WriteLine("Pushing updates to all subreddits per trusted request");
+				message.Reply("Pushing updates to all subreddits.");
+				foreach (var subreddit in Subreddits)
+					UpdateSubreddit(subreddit);
+			}
+			if (message.Subject == "SILENCE USER")
+			{
+				Console.WriteLine("Silencing user per trusted request");
+				var lines = message.Body.Replace("\r", string.Empty).Split('\n');
+				var subreddit = Config.Subreddits.FirstOrDefault(s => s.Name == lines[1]);
+				if (subreddit == null)
+					message.Reply("I'm not tracking that subreddit.");
+				else
+				{
+					subreddit.SilencedUsers = subreddit.SilencedUsers.Concat(new[] { lines[0] }).ToArray();
+					SaveConfig();
+					message.Reply("User silenced.");
+					Reddit.ComposePrivateMessage("User silenced", string.Format("I have silenced /u/{0}, at the request of /u/{1}." +
+						" This means that I will now automatically remove all comments and posts this user makes in {2}.",
+                        lines[0], message.Author, lines[1]), lines[1]);
+				}
+			}
         }
 
         private static void UpdateSubreddit(Subreddit subreddit)
