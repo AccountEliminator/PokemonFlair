@@ -168,8 +168,11 @@ namespace PokemonFlair
         {
             Console.WriteLine("Checking inbox...");
             var messages = Reddit.User.GetUnreadMessages();
-            foreach (var message in messages)
+            foreach (var _message in messages)
             {
+                var message = _message as PrivateMessage;
+                if (message == null)
+                    continue;
                 message.SetAsRead();
                 if (Config.TrustedUsers.Contains(message.Author))
                     HandleTrustedMessage(message);
