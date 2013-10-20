@@ -16,6 +16,7 @@ namespace PokemonFlair
         static Reddit Reddit { get; set; }
         static Subreddit[] Subreddits { get; set; }
         static Configuration Config { get; set; }
+        static Regex FriendCodeRegex { get; set; }
 
         static void Main(string[] args)
         {
@@ -41,6 +42,7 @@ namespace PokemonFlair
                 Console.WriteLine("Login failed!");
                 return;
             }
+            FriendCodeRegex = new Regex("[0-9]{4}-[0-9]{4}-[0-9]{4}", RegexOptions.Compiled);
             Subreddits = new Subreddit[Config.Subreddits.Length];
             for (int i = 0; i < Subreddits.Length; i++)
                 Subreddits[i] = Reddit.GetSubreddit(Config.Subreddits[i].Name);
@@ -181,14 +183,23 @@ namespace PokemonFlair
                 if (!message.IsComment && message.Subject == "Set flair")
                 {
                     int flair;
-                    if (int.TryParse(message.Body, out flair) && flair >= Config.MinimumFlairNumber && flair <= Config.MaximumFlairNumber)
+                    var flairString = message.Body;
+                    string friendCode = null;
+                    if (message.Body.Contains(" "))
+                    {
+                        flairString = message.Body.Remove(message.Body.IndexOf(" "));
+                        friendCode = message.Body.Substring(message.Body.IndexOf(" ")).Trim();
+                        if (!FriendCodeRegex.IsMatch(friendCode))
+                            friendCode = null;
+                    }
+                    if (int.TryParse(flairString, out flair) && flair >= Config.MinimumFlairNumber && flair <= Config.MaximumFlairNumber)
                     {
                         Console.WriteLine("Setting /u/{0} to {1}", message.Author, flair);
                         foreach (var subreddit in Subreddits)
                         {
                             var registeredSubreddit = Config.Subreddits.FirstOrDefault(s => s.Name == "/r/" + subreddit.Name);
                             if (!registeredSubreddit.FlairEnabled) continue;
-                            subreddit.SetUserFlair(message.Author, flair.ToString(), null);
+                            subreddit.SetUserFlair(message.Author, flair.ToString(), friendCode);
                         }
                         message.Reply(Config.SuccessfulFlairMessage);
                     }
